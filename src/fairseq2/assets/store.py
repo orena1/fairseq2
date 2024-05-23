@@ -28,11 +28,22 @@ class AssetStore(ABC):
     """Represents a store of assets."""
 
     @abstractmethod
-    def retrieve_card(self, name: str) -> AssetCard:
+    def retrieve_card(self, name: str, *, ignore_envs: bool = False) -> AssetCard:
         """Retrieve the card of the specified asset.
 
         :param name:
             The name of the asset.
+        :para ignore_envs:
+            If ``True``, ignores environment-specific cards.
+        """
+
+    @abstractmethod
+    def retrieve_names(self, user: bool = False) -> List[str]:
+        """Retrieves the names of all assets contained in this store.
+
+        :param user:
+            If ``True``, retrieves assets in the user scope; otherwise, in the
+            global scope.
         """
 
 
@@ -54,11 +65,14 @@ class StandardAssetStore(AssetStore):
         self.user_metadata_providers = []
 
     @override
-    def retrieve_card(self, name: str) -> AssetCard:
+    def retrieve_card(self, name: str, *, ignore_envs: bool = False) -> AssetCard:
         if "@" in name:
             raise ValueError("`name` must not contain the reserved '@' character.")
 
-        envs = self._resolve_envs()
+        if ignore_envs:
+            envs = []
+        else:
+            envs = self._resolve_envs()
 
         return self._do_retrieve_card(name, envs)
 
@@ -71,7 +85,7 @@ class StandardAssetStore(AssetStore):
 
         # This is a special, always available environment for users to override
         # asset metadata. For instance, a user can set the checkpoint path of a
-        # gated model locally by having a same named asset with @user suffix.
+        # gated model locally by having a same named asset with a @user suffix.
         envs.append("user")
 
         return envs
@@ -124,6 +138,17 @@ class StandardAssetStore(AssetStore):
                 continue
 
         raise AssetNotFoundError(f"An asset with the name '{name}' cannot be found.")
+
+    @override
+    def retrieve_names(self, user: bool = False) -> List[str]:
+        names = []
+
+        providers = self.user_metadata_providers if user else self.metadata_providers
+
+        for provider in providers:
+            names.extend(provider.get_names())
+
+        return names
 
     def clear_cache(self) -> None:
         """Clear the cache of the underlying metadata providers."""

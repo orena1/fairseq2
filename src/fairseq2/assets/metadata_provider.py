@@ -32,6 +32,10 @@ class AssetMetadataProvider(ABC):
         """
 
     @abstractmethod
+    def get_names(self) -> List[str]:
+        """Return the names of the assets for which this provider has metadata."""
+
+    @abstractmethod
     def clear_cache(self) -> None:
         """Clear any cached asset metadata."""
 
@@ -54,18 +58,28 @@ class FileAssetMetadataProvider(AssetMetadataProvider):
 
     @override
     def get_metadata(self, name: str) -> Dict[str, Any]:
-        self._ensure_cache_loaded()
+        cache = self._ensure_cache_loaded()
 
         try:
-            return deepcopy(self._cache[name])  # type: ignore[index]
+            metadata = deepcopy(cache[name])
         except KeyError:
             raise AssetNotFoundError(
                 f"An asset with the name '{name}' cannot be found."
             )
 
-    def _ensure_cache_loaded(self) -> None:
+        metadata["__source__"] = f"directory:{self._base_dir}"
+
+        return metadata
+
+    @override
+    def get_names(self) -> List[str]:
+        cache = self._ensure_cache_loaded()
+
+        return list(cache.keys())
+
+    def _ensure_cache_loaded(self) -> Dict[str, Dict[str, Any]]:
         if self._cache is not None:
-            return
+            return self._cache
 
         self._cache = {}
 
@@ -90,6 +104,8 @@ class FileAssetMetadataProvider(AssetMetadataProvider):
                         )
 
                     self._cache[name] = metadata
+
+        return self._cache
 
     @override
     def clear_cache(self) -> None:
@@ -117,18 +133,28 @@ class PackageAssetMetadataProvider(AssetMetadataProvider):
 
     @override
     def get_metadata(self, name: str) -> Dict[str, Any]:
-        self._ensure_cache_loaded()
+        cache = self._ensure_cache_loaded()
 
         try:
-            return deepcopy(self._cache[name])  # type: ignore[index]
+            metadata = deepcopy(cache[name])
         except KeyError:
             raise AssetNotFoundError(
                 f"An asset with the name '{name}' cannot be found."
             )
 
-    def _ensure_cache_loaded(self) -> None:
+        metadata["__source__"] = f"package:{self._package_name}"
+
+        return metadata
+
+    @override
+    def get_names(self) -> List[str]:
+        cache = self._ensure_cache_loaded()
+
+        return list(cache.keys())
+
+    def _ensure_cache_loaded(self) -> Dict[str, Dict[str, Any]]:
         if self._cache is not None:
-            return
+            return self._cache
 
         self._cache = {}
 
@@ -143,6 +169,8 @@ class PackageAssetMetadataProvider(AssetMetadataProvider):
                     )
 
                 self._cache[name] = metadata
+
+        return self._cache
 
     def _list_files(self) -> List[Path]:
         files = []
@@ -216,8 +244,11 @@ class InProcAssetMetadataProvider(AssetMetadataProvider):
     """Provides asset metadata stored in memory."""
 
     _metadata: Dict[str, Dict[str, Any]]
+    _name: Optional[str]
 
-    def __init__(self, metadata: Sequence[Dict[str, Any]]) -> None:
+    def __init__(
+        self, metadata: Sequence[Dict[str, Any]], *, name: Optional[str] = None
+    ) -> None:
         self._metadata = {}
 
         for idx, m in enumerate(metadata):
@@ -240,14 +271,29 @@ class InProcAssetMetadataProvider(AssetMetadataProvider):
 
             self._metadata[name] = m
 
+        self._name = name
+
     @override
     def get_metadata(self, name: str) -> Dict[str, Any]:
         try:
-            return deepcopy(self._metadata[name])
+            metadata = deepcopy(self._metadata[name])
         except KeyError:
             raise AssetNotFoundError(
                 f"An asset with the name '{name}' cannot be found."
             )
+
+        name = "inproc"
+
+        if self._name is not None:
+            name = f"{name}:{self._name}"
+
+        metadata["__source__"] = name
+
+        return metadata
+
+    @override
+    def get_names(self) -> List[str]:
+        return list(self._metadata.keys())
 
     @override
     def clear_cache(self) -> None:
