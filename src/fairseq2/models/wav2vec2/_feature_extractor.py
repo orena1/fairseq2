@@ -196,7 +196,7 @@ class Wav2Vec2FeatureExtractionLayer(Module):
     """Represents a feature extraction layer used in
     :class:`Wav2Vec2FeatureExtractor`."""
 
-    conv: Conv1d
+    conv: Wav2Vec2FeatureConv1d
     dropout: Dropout | None
     group_norm: GroupNorm | None
     layer_norm: LayerNorm | None
@@ -218,7 +218,7 @@ class Wav2Vec2FeatureExtractionLayer(Module):
     ) -> None:
         super().__init__()
 
-        self.conv = Wav2Vec2FeatureConv1d(
+        self.conv = conv(
             input_dim,
             output_dim,
             kernel_size,
@@ -243,7 +243,7 @@ class Wav2Vec2FeatureExtractionLayer(Module):
         else:
             self.register_module("layer_norm", None)
 
-        self.activation = GELU()
+        self.activation = activation()
 
     def forward(self, seqs: Tensor) -> Tensor:
         # (N, C_inp, S) -> (N, C_out, S)
